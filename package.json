@@ -1,0 +1,20 @@
+{
+    "name": "NodeSmarty",
+    "description": "A port of Smarty to Node.js started by lampaa.",
+    "version": "3.1.0",
+    "homepage": "https://github.com/RotexDev/PrestaShop.js",
+    "engines": {"node": ">= 0.8"},
+    "author": "Andrew Carlson <rotexdev@gmail.com>",
+    "help": {
+        "web": "https://github.com/RotexDev/NodeSmarty/blob/master/README.md"
+    },
+
+    "dependencies": {
+		"PHPJS": "*"
+    },
+
+    "repository" : {
+        "type" : "git",
+         "url" : "git@github.com:RotexDev/NodeSmarty.git"
+    }
+}

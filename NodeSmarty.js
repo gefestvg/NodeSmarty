@@ -1,40 +1,65 @@
 /**
  * NodeSmarty
  * @author lampa (http://nodesmarty.com, http://lampacore.ru/nodesmarty)
- * @version 2.beta
+ * @version 3.beta
  */
 exports = module.exports = NodeSmarty;
 
-function NodeSmarty() {	
+function NodeSmarty(args) {	
 	NodeSmarty.func.init.prototype = NodeSmarty.func;
-	return new NodeSmarty.func.init();
+	return new NodeSmarty.func.init(args);
 };
 
 NodeSmarty.func = {
 	constructor: NodeSmarty,
+	/**
+	 * use File System module
+	 */
+	_fs: require('fs'),
 	
-	assignes: {},
-	ldq:'{',
-	rdq:'}',
-	
-	_foreach_master: {'if':false, 'counter':0, 'variables':{}, 'variables_vars':{}},	// private
-	_CompileDir:false,
-	_TemplateDir:false,
-	_CacheDir:false,
-	_preCompiler:{},
+	/**
+	 * use PHPJS module
+	 */
+	phpjs: require('PHPJS'),
 	
 	//_memCompile: false,
 	//_memCache: false,
 	/**
 	 * initializate
 	 */
-	init: function() {
+	init: function(args) {
+		this.assignes = {};
+		this.ldq = '{';
+		this.rdq = '}';
 		
+		this._foreach_master = {'if':false, 'counter':0, 'variables':{}, 'variables_vars':{}};
+		this._CompileDir = false;
+		this._TemplateDir = false;
+		this._CacheDir = false;
+		this._preCompiler = {};
+
+		
+		/**
+		 * set start variables
+		 */
+		if(args != undefined) {
+			if(args.compileDir != undefined) {
+				this.setCompileDir(args.compileDir);
+			}
+			if(args.templateDir != undefined){
+				this.setTemplateDir(args.templateDir);
+			}
+			if(args.cacheDir != undefined) {
+				this.setCacheDir(args.cacheDir);
+			}
+		}
+		
+		/**
+		 * 
+		 */		
 		this.attrs_pre_regexp = /["\']?(\S\w*)["\']?\s*=\s*(["\'](.*?)["\']|(\S+))/g;
 		this.attrs_regexp = /["\']?(\S\w*)["\']?\s*=\s*(?:["\'](.+)["\']|(\S+))/;
 		
-		this._fs = require('fs');
-	
 		/**
 		 * 
 		 */
@@ -42,7 +67,7 @@ NodeSmarty.func = {
 		this._math_regexp_split = /\%|\+|\-|\*|\//;
 		this._slash_regexp = /\//g;
 		this._string_rgexp = /^\w+$/;
-		this._line_regexp = /(\r\n|\n|\r)/gm;
+		this._line_regexp = /\r\n|\n|\r/gm;
 		this._replace_shashes_regexp = /\\?("|')/g;
 		this._template_tags_commands_regexp = new RegExp(this.ldq+'(.*?)(?:\\s+(.*)|)'+this.rdq, "");
 		
@@ -60,9 +85,8 @@ NodeSmarty.func = {
 		/**
 		 * 
 		 */
-		this._match_if_tag = /(\-?0[xX][0-9a-fA-F]+|\-?\d+(?:\.\d+)?|\$\w+|\.\d+|!==|===|==|!=|<>|<<|>>|<=|>=|\&\&|\|\||\(|\)|,|\!|\^|=|\&|\~|<|>|\||\%|\+|\-|\/|\*|@|\b\w+\b\S+)/g;
+		this._match_if_tag = /(\-?0[xX][0-9a-fA-F]+|\-?\d+(?:\.\d+)?|\$\w+|\.\d+|!==|===|==|!=|<>|<<|>>|<=|>=|\&\&|\|\||\(|\)|,|\!|\^|=|\&|\~|<|>|\||\%|\+|\-|\/|\*|@|\b\S+|\S\b\w+\b\S+)/g;
 		  
-
 		return this;
 	},
 	
@@ -239,9 +263,9 @@ NodeSmarty.func = {
 		}
 		
 		// tag
-		var tag_command = match[1];
+		var tag_command = match[1]
 		// arguments
-		var tag_args = (match[2] != null) ? match[2] : null;
+		, tag_args = (match[2] != null) ? match[2] : null;
 
 		/**
 		 * parse mathematic tags 
@@ -311,12 +335,14 @@ NodeSmarty.func = {
 		if(inde == undefined) {
 			var inde = true;
 		}
-		var new_var='', list='', var_tmp='';
+		var new_var=''
+		, list=''
+		, var_tmp='';
 		
 		if(variab instanceof Array) {
 			this._syntax_error("error variable");
 		}	
-	
+		
 		if(this._foreach_master['if'] == true && inde) {
 			var_tmp = variab.split('.');
 			
@@ -383,9 +409,17 @@ NodeSmarty.func = {
 
 		for (var arg_name in attrs) {
 			var arg_value = attrs[arg_name];
+			
+			var arg_value_match = arg_value.match(/\(.*?\)/g);
+			
+			if(arg_value_match != null) {
+				for(var i=0; i < arg_value_match.length; i++) {
+					arg_value = arg_value.replace(arg_value_match[i], "'+" + this._parse_vars(arg_value_match[i].replace(/[\(\)]/g, '')) +"+'");
+				}				
+			}
 		
 			if (arg_name == 'file') {
-				var include_file = arg_value;
+				include_file = arg_value;
 				continue;
 			} else if (arg_name == 'assign') {
 				var assign_var = arg_value;
@@ -406,9 +440,10 @@ NodeSmarty.func = {
 			$elseif = false;
 		}
 		
-		var regular = this._match_if_tag;
 				
-		var tokens = $tag_args.match(regular);
+		var tokens = $tag_args.match(this._match_if_tag);
+		
+		console.log($tag_args);
 
 		if(tokens == null) {
 			var $_error_msg = $elseif ? "'elseif'" : "'if'";
@@ -427,11 +462,17 @@ NodeSmarty.func = {
 		if(token_count['('] != undefined && token_count['('] != token_count[')']) {
 			this._syntax_error("unbalanced parenthesis in if statement");
 		}
-
 		var is_arg_stack = [];
 
 		for (var i = 0; i < tokens.length; i++) {
-		
+			
+			//TODO: Replacments for all usable PHPJS functions
+			tokens[i] = tokens[i].replace(/(isset\(.*?\))/, function(match, p1, p2, p3, offset, string) {
+				return p3.replace(match, '__this.phpjs.isset(__this.assignes[\'' + match.replace('isset($', '').replace(')', '') + '\'])');
+			}, "i");
+			
+			console.log(tokens[i]);
+			
 			switch (tokens[i].toLowerCase()) {
 				case '!':
 				case '!==':
@@ -576,7 +617,7 @@ NodeSmarty.func = {
 			if (!key.match(this._string_rgexp)) {
 				return this._syntax_error("foreach: 'key' must to be a variable name (literal string)");
 			}
-			var key_part = ", $"+key;
+			var key_part = ", $" + key;
 			
 			this._foreach_master['variables_vars']["$"+key] = true;
 			
@@ -663,8 +704,8 @@ NodeSmarty.func = {
 	 */
 	_parse_attrs: function(tag_args) {
 		/* Tokenize tag attributes. */
-		var attrs = {};
-		var new_match = {};
+		var attrs = {}
+		, new_match = {};
 		
 		/* create key=value array */
 		tag_args = tag_args.match(this.attrs_pre_regexp);
@@ -682,10 +723,10 @@ NodeSmarty.func = {
 			token = new_match[token];
 
 			/* We booleanize the token if it's a non-quoted possible boolean value. */
-			if (token.match(/^(on|yes|true)$/i)) {
+			if (/^(on|yes|true)$/i.test(token)) {
 				token = 'true';
 			} 
-			else if (token.match(/^(off|no|false)$/i)) {
+			else if (/^(off|no|false)$/i.test(token)) {
 				token = 'false';
 			} 
 			else if (token == 'null') {
@@ -743,15 +784,14 @@ NodeSmarty.func = {
 	},
 	
 	/**
-	 * generate template compilator
+	 * compile files
 	 */
 	_fetchPost: function(source_content) {
 		source_content = this._replacePreProcess(source_content); 
 		
-		var template_tags = source_content.match(this._template_tags_regexp);
-		var text_blocks = source_content.split(this._text_blocks_regexp);
-		
-		var compiled_tags = [];
+		var template_tags = source_content.match(this._template_tags_regexp)
+		, text_blocks = source_content.split(this._text_blocks_regexp)
+		, compiled_tags = [];
 		
 		if(template_tags == null) return 'var content = ""; content += "'+source_content.replace(this._line_regexp," \\n").replace(this._replace_shashes_regexp, '\\$1')+'";';
 
@@ -777,7 +817,7 @@ NodeSmarty.func = {
 			text_blocks[i] = text_blocks[i].replace(this._line_regexp," \\n");
 			
 			if(text_blocks[i].replace(this._replace_shashes_regexp, '\\$1') != '') {
-				text_blocks[i] = "\ncontent += \""+text_blocks[i].replace(this._replace_shashes_regexp, '\\$1')+"\";\n"; // ïðàâèòü
+				text_blocks[i] = "\ncontent += \""+text_blocks[i].replace(this._replace_shashes_regexp, '\\$1')+"\";\n"; // Ð¿Ñ€Ð°Ð²Ð¸Ñ‚ÑŒ
 			}
 			
 			compiled_content += text_blocks[i] + compiled_tags[i];
@@ -800,68 +840,137 @@ NodeSmarty.func = {
 	/**
 	 * open && read file
 	 */
-	fetch: function(file, callback) {
+	fetch: function(file, callback) {	
 		/**
 		 * check dirs
 		 */
-		if(!this._CacheDir) {
-			return this._syntax_error('fetch: compile dir not set');
-		}
-		if(!this._CompileDir) {
-			return this._syntax_error('fetch: compile dir not set');
-		}
-		if(!this._TemplateDir) {
-			return this._syntax_error('fetch: template dir not set');
+		this._checkerDir();
+		
+		/**
+		 * variables
+		 */		
+		var updFile = false
+		, fetch
+		, data
+		, _this = this
+		, templatePath = this._TemplateDir+file
+		, compilePath = this._CompileDir+file.replace(this._slash_regexp, this._slash_replace)+".js";
+		
+		/**
+		 * 
+		 */
+		var ifTemplate = false
+		, ifCompile = false
+		, ifUpdateFile = false;
+		
+		/**
+		 * function, which performed after the collection of stats
+		 */
+		var postStatsFunc = function() {
+			if(!ifTemplate || !ifCompile) return;
+		
+			/**
+			 * check file times
+			 */
+			if((new Date(ifTemplate['mtime'])).getTime()/1000.0 < (new Date(ifCompile['mtime'])).getTime()/1000.0 && !ifUpdateFile) {
+				postTimeStats(false);
+			}
+			else {
+				postTimeStats(true);
+			}
 		}
 		
 		/**
-		 * search template file && compile him
+		 * 
 		 */
-		var _this = this;
+		var postTimeStats = function(ifUpd) {
+			/**
+			 * if file need to be compiled
+			 */
+			if(ifUpd) {
+				
+				_this._fs.readFile(templatePath, 'utf8', function (err, data) {
+					if (err) {
+						_this._syntax_error('err' + err);
+					}
+					
+					/**
+					 * compile
+					 */ 
+					fetch = _this._fetchPost(data);
+					
+					_this._fs.writeFile(compilePath, fetch, 'utf8');
+					
+					callback(_this._playCompiled(fetch));
+				});
+			}
+			else {
+				_this._fs.readFile(compilePath, 'utf8', function (err, data) {
+					if (err) {
+						_this._syntax_error('err' + err);
+					}	
+					
+					callback(_this._playCompiled(data));
+				});
+			}	
+		}
 		
-		//
-		this._fs.readFile(this._TemplateDir+file, 'utf8', function (err,data) {
+		/**
+		 * stats of template file
+		 */
+		this._fs.stat(templatePath, function(err, stats) {
 			if (err) {
-				return this._syntax_error('err'+err);
+				return _this._syntax_error('err' + err);
+			}
+			ifTemplate = stats;
+			
+			postStatsFunc();
+		});
+		
+		/**
+		 * stats of compile file
+		 */
+		this._fs.stat(compilePath, function(err, stats) {
+			if (err) {
+				//return this._syntax_error('err' + err);
+				ifUpdateFile = true;
+				ifCompile = true;
+			}
+			else {
+				ifCompile = stats;
 			}
 			
-			callback.call(eval(_this._fetchPost(data)));
+			postStatsFunc();
 		});
 	},	
 	
 	/**
 	 * open && read file syncronic
 	 */
-	fetchSync: function(file, callback) {
+	fetchSync: function(file) {
 		/**
 		 * check dirs
 		 */
-		if(!this._CacheDir) {
-			return this._syntax_error('fetchSync: compile dir not set');
-		}
-		if(!this._CompileDir) {
-			return this._syntax_error('fetchSync: compile dir not set');
-		}
-		if(!this._TemplateDir) {
-			return this._syntax_error('fetchSync: template dir not set');
-		}
+		this._checkerDir();
 		
 		/**
-		 * variable global this!
+		 * variables
 		 */
-		var updFile = false,
-			fetch,
-			data;
+		var updFile = false
+		, fetch
+		, data
+		, templatePath = this._TemplateDir+file
+		, compilePath = this._CompileDir+file.replace(this._slash_regexp, this._slash_replace)+".js";
 		
 		/**
 		 * search compile file && check is
 		 */
 		try { 
-			var templateSave = this._fs.statSync(this._TemplateDir+file);
-			var compileSave = this._fs.statSync(this._CompileDir+file.replace(this._slash_regexp, this._slash_replace)+".js");
+			var templateSave = this._fs.statSync(templatePath);
+			var compileSave = this._fs.statSync(compilePath);
 			
 			if((new Date(templateSave['mtime'])).getTime()/1000.0 < (new Date(compileSave['mtime'])).getTime()/1000.0) {
-				fetch = this._fs.readFileSync(this._CompileDir+file.replace(this._slash_regexp, this._slash_replace)+'.js', 'utf8');
+				fetch = this._fs.readFileSync(compilePath, 'utf8');
 			}
 			else {
 				updFile = true;
@@ -872,12 +981,38 @@ NodeSmarty.func = {
 		} 
 		
 		if(updFile) {
-			data = this._fs.readFileSync(this._TemplateDir+file, 'utf8');
+			data = this._fs.readFileSync(templatePath, 'utf8');
+			
+			/**
+			 *  compile file
+			 */
 			fetch = this._fetchPost(data);
-			this._fs.writeFileSync(this._CompileDir+file.replace(this._slash_regexp, this._slash_replace)+'.js', fetch, 'utf8');
+			this._fs.writeFileSync(compilePath, fetch, 'utf8');
 		}
 	
 		//
-		return new Function("var __this = this, content = ''; "+fetch+"; return content;").call(this); //=> return variable "content";
+		return this._playCompiled(fetch); //=> return variable "content";
+	},
+	
+	/**
+	 * eval compiled code.
+	 */
+	_playCompiled: function(fetch) {
+		return new Function("var __this = this, content = ''; " + fetch + "; return content;").call(this);
+	},
+	
+	/**
+	 * check dirs
+	 */
+	_checkerDir: function() {
+		if(!this._CacheDir) {
+			return this._syntax_error('fetchSync: compile dir not set');
+		}
+		if(!this._CompileDir) {
+			return this._syntax_error('fetchSync: compile dir not set');
+		}
+		if(!this._TemplateDir) {
+			return this._syntax_error('fetchSync: template dir not set');
+		}		
 	}
 } 
