@@ -20,7 +20,7 @@ NodeSmarty.func = {
 	/**
 	 * use PHPJS module
 	 */
-	phpjs: require('PHPJS'),
+	phpjs: require('phpjs'),
 	
 	//_memCompile: false,
 	//_memCache: false,
@@ -1006,7 +1006,7 @@ NodeSmarty.func = {
 	 */
 	_checkerDir: function() {
 		if(!this._CacheDir) {
-			return this._syntax_error('fetchSync: compile dir not set');
+			return this._syntax_error('fetchSync: cache dir not set');
 		}
 		if(!this._CompileDir) {
 			return this._syntax_error('fetchSync: compile dir not set');
